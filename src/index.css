@@ -1,0 +1,145 @@
+/* =========================================================
+   Alberta Seasonal Access & Essential Supply Resilience
+   Analyzer
+   Global Styles
+   ========================================================= */
+
+:root {
+  font-family:
+    Inter,
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  color: #e8eef8;
+  background-color: #07111f;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  overflow: hidden;
+
+  color: #e8eef8;
+  background: #07111f;
+}
+
+#root {
+  max-width: none;
+  text-align: left;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-top: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+
+  color: inherit;
+  background: none;
+
+  cursor: pointer;
+}
+
+input,
+button,
+textarea,
+select {
+  outline: none;
+}
+
+/* Scrollbars */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #29415d #0a1624;
+}
+
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #0a1624;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid #0a1624;
+  border-radius: 10px;
+
+  background: #29415d;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #365474;
+}
+
+/* Text selection */
+
+::selection {
+  color: #ffffff;
+  background: rgba(59, 130, 246, 0.55);
+}
+
+/* Mobile */
+
+@media (max-width: 760px) {
+  html,
+  body,
+  #root {
+    height: auto;
+    min-height: 100%;
+  }
+
+  body {
+    overflow: auto;
+  }
+}

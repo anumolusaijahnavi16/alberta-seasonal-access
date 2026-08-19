@@ -1,0 +1,65 @@
+# =========================================================
+# Alberta Seasonal Access & Supply Resilience Analyzer
+# =========================================================
+
+# -------------------------
+# Frontend / Node
+# -------------------------
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# -------------------------
+# Environment files
+# -------------------------
+.env
+.env.*
+!.env.example
+
+# -------------------------
+# .NET / ASP.NET Core
+# -------------------------
+**/bin/
+**/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# -------------------------
+# IDE / Editors
+# -------------------------
+.vscode/
+.idea/
+.vs/
+
+# -------------------------
+# macOS
+# -------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# -------------------------
+# Logs
+# -------------------------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -------------------------
+# Testing / Coverage
+# -------------------------
+coverage/
+TestResults/
+
+# -------------------------
+# Temporary files
+# -------------------------
+*.tmp
+*.temp
+.cache/
