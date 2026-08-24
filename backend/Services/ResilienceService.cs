@@ -35,10 +35,19 @@ public class ResilienceService
                     : "High";
 
         // -------------------------------------------------
-        // Calculate resilience score
+        // Prototype Seasonal Access Resilience Indicator
         //
-        // 100 = strongest all-season accessibility
-        //   0 = highest seasonal dependency
+        // This indicator describes road-network composition
+        // within the selected analysis radius.
+        //
+        // 100 = no analyzed winter-road dependency
+        //   0 = analyzed network consists entirely of
+        //       winter-road infrastructure
+        //
+        // IMPORTANT:
+        // This is an exploratory indicator and is not an
+        // official or validated Government of Alberta
+        // resilience assessment.
         // -------------------------------------------------
 
         double resilienceScore =

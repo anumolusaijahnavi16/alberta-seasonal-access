@@ -1383,6 +1383,125 @@ input {
 }
 
 /* =========================================================
+   ANALYSIS RADIUS SELECTOR
+   ========================================================= */
+
+.radius-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 6px 8px;
+  border-radius: 11px;
+  background: rgba(8, 27, 45, 0.74);
+  border: 1px solid rgba(112, 150, 192, 0.18);
+}
+
+.radius-selector-label {
+  margin: 0 5px 0 3px;
+  color: #a9bad0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.radius-option {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.radius-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(96, 165, 250, 0.7);
+}
+
+.radius-option.active {
+  color: #dbeafe;
+  background: rgba(37, 99, 235, 0.18);
+  border-color: rgba(96, 165, 250, 0.75);
+}
+
+/* =========================================================
+   METHODOLOGY / PROTOTYPE DISCLOSURE
+   ========================================================= */
+
+.methodology-note {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.methodology-note > strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.methodology-note p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.formula-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 7px;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(96, 165, 250, 0.12);
+}
+
+.formula-box span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.formula-box strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.prototype-disclaimer {
+  margin-top: 12px;
+  padding: 11px 12px;
+  border-left: 3px solid rgba(245, 158, 11, 0.8);
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.prototype-disclaimer strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #fbbf24;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.prototype-disclaimer p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* =========================================================
    RESPONSIVE
    ========================================================= */
 
@@ -1445,7 +1564,8 @@ input {
     padding: 13px 16px;
   }
 
-  .radius-pill {
+  .radius-pill,
+  .radius-selector {
     display: none;
   }
 
@@ -1525,5 +1645,170 @@ input {
   .footer-stats span:nth-child(1),
   .footer-stats .footer-divider:first-of-type {
     display: none;
+  }
+}
+/* =========================================================
+   GOVERNMENT-FACING DEMO ENHANCEMENTS
+   ========================================================= */
+
+.methodology-button {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 7px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.methodology-button:hover {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.radius-option:disabled {
+  cursor: wait;
+  opacity: 0.5;
+  transform: none;
+}
+
+.result-summary {
+  margin-top: 14px;
+  padding: 12px 13px;
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.result-summary-label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  opacity: 0.65;
+}
+
+.result-summary p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.footer-retrieved {
+  margin-left: 10px;
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.methodology-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.68);
+  backdrop-filter: blur(5px);
+}
+
+.methodology-modal {
+  width: min(680px, 100%);
+  max-height: min(760px, 90vh);
+  overflow: auto;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 14px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
+}
+
+.methodology-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  background: #fff;
+}
+
+.methodology-modal-header h2 {
+  margin: 3px 0 0;
+  font-size: 21px;
+}
+
+.methodology-close {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.06);
+  color: inherit;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.methodology-modal-body {
+  padding: 20px 22px 24px;
+}
+
+.methodology-modal-body h3 {
+  margin: 18px 0 6px;
+  font-size: 13px;
+}
+
+.methodology-modal-body h3:first-child {
+  margin-top: 0;
+}
+
+.methodology-modal-body p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: #475569;
+}
+
+.methodology-equation {
+  margin: 8px 0 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.methodology-disclaimer {
+  margin-top: 20px;
+  padding: 13px 14px;
+  border-left: 3px solid #f59e0b;
+  border-radius: 6px;
+  background: #fffbeb;
+}
+
+.methodology-disclaimer > strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  .methodology-modal-backdrop {
+    padding: 10px;
+  }
+
+  .methodology-modal {
+    max-height: 94vh;
+  }
+
+  .footer-retrieved {
+    display: block;
+    margin: 3px 0 0 16px;
   }
 }

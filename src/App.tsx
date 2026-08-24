@@ -23,9 +23,8 @@ import Search from "@arcgis/core/widgets/Search";
 
 import "./App.css";
 
-const ANALYSIS_RADIUS_KM = 50;
-
-const API_BASE_URL = "http://localhost:5112";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5112";
 
 const ALBERTA_ACCESS_SERVICE =
   "https://geospatial.alberta.ca/titan/rest/services/utility/access/MapServer";
@@ -61,6 +60,9 @@ interface AccessAnalysisResponse {
 
 function App() {
   const mapDiv = useRef<HTMLDivElement>(null);
+
+  const [methodologyOpen, setMethodologyOpen] = useState(false);
+  const [dataRetrievedAt] = useState(() => new Date());
 
   const winterRoadsRef = useRef<FeatureLayer | null>(null);
   const pavedRoadsRef = useRef<FeatureLayer | null>(null);
@@ -118,6 +120,30 @@ function App() {
   const [analysisError, setAnalysisError] = useState<
     string | null
   >(null);
+
+  // User-selectable analysis radius. A ref is used by the ArcGIS
+  // click handler so changing the radius does not recreate the map.
+  const [analysisRadiusKm, setAnalysisRadiusKm] = useState(50);
+  const analysisRadiusRef = useRef(50);
+
+  // The ArcGIS analysis lives inside the map initialization effect.
+  // This ref lets the radius buttons ask that analysis to rerun for
+  // the currently selected community without recreating the map.
+  const reanalyzeSelectedCommunityRef = useRef<
+    (() => Promise<void>) | null
+  >(null);
+
+  const handleRadiusChange = (radius: number) => {
+    if (radius === analysisRadiusRef.current) return;
+
+    setAnalysisRadiusKm(radius);
+    analysisRadiusRef.current = radius;
+    setAnalysisError(null);
+
+    // If a community has already been selected, immediately rerun
+    // the GIS + backend analysis using the new radius.
+    void reanalyzeSelectedCommunityRef.current?.();
+  };
 
   // ======================================================
   // DERIVED METRICS
@@ -178,6 +204,21 @@ function App() {
 
   const resilienceClass =
     resilienceLevel?.toLowerCase() ?? "";
+
+  // ======================================================
+  // ABOUT & METHODOLOGY MODAL
+  // ======================================================
+
+  useEffect(() => {
+    if (!methodologyOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMethodologyOpen(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [methodologyOpen]);
 
   // ======================================================
   // MAP INITIALIZATION
@@ -503,7 +544,7 @@ function App() {
 
             winterSegmentCount: winterSegments,
 
-            analysisRadiusKm: ANALYSIS_RADIUS_KM,
+            analysisRadiusKm: analysisRadiusRef.current,
           }),
         }
       );
@@ -523,6 +564,321 @@ function App() {
     // COMMUNITY CLICK ANALYSIS
     // ====================================================
 
+    let lastSelectedCommunityGraphic: Graphic | null = null;
+
+    const analyzeCommunityGraphic = async (
+      communityGraphic: Graphic
+    ) => {
+      try {
+      const communityName =
+        communityGraphic.attributes?.CULPT_NAME;
+
+      const communityType =
+        communityGraphic.attributes?.TYPE ??
+        "Unknown";
+
+      const selectedGeometry =
+        communityGraphic.geometry;
+
+      if (
+        !communityName ||
+        !selectedGeometry
+      ) {
+        return;
+      }
+
+      // ----------------------------------------------
+      // RESET PREVIOUS ANALYSIS
+      // ----------------------------------------------
+
+      setSelectedCommunity(communityName);
+
+      setSelectedCommunityType(
+        communityType
+      );
+
+      setWinterSegmentCount(null);
+
+      setWinterRoadLength(null);
+
+      setPavedRoadLength(null);
+
+      setGravelRoadLength(null);
+
+      setBackendAnalysis(null);
+
+      setAnalysisError(null);
+
+      setAnalysisLoading(true);
+
+      analysisGraphics.removeAll();
+
+      // ----------------------------------------------
+      // LOAD GEOMETRY OPERATORS
+      // ----------------------------------------------
+
+      if (
+        !geodesicBufferOperator.isLoaded()
+      ) {
+        await geodesicBufferOperator.load();
+      }
+
+      if (
+        !geodeticLengthOperator.isLoaded()
+      ) {
+        await geodeticLengthOperator.load();
+      }
+
+      // ----------------------------------------------
+      // CREATE USER-SELECTED ANALYSIS BUFFER
+      // ----------------------------------------------
+
+      const bufferGeometry =
+        geodesicBufferOperator.execute(
+          selectedGeometry,
+          analysisRadiusRef.current,
+          {
+            unit: "kilometers",
+          }
+        );
+
+      if (!bufferGeometry) {
+        throw new Error(
+          "Unable to create the community analysis buffer."
+        );
+      }
+
+      // ----------------------------------------------
+      // BUFFER GRAPHIC
+      // ----------------------------------------------
+
+      const bufferGraphic = new Graphic({
+        geometry: bufferGeometry,
+
+        symbol: {
+          type: "simple-fill",
+
+          color: [
+            37,
+            99,
+            235,
+            0.07,
+          ],
+
+          outline: {
+            color: [
+              59,
+              130,
+              246,
+              0.95,
+            ],
+
+            width: 2,
+          },
+        },
+      });
+
+      analysisGraphics.add(bufferGraphic);
+
+      // ----------------------------------------------
+      // SELECTED COMMUNITY
+      // ----------------------------------------------
+
+      const selectedMarker =
+        new Graphic({
+          geometry: selectedGeometry,
+
+          symbol:
+            new SimpleMarkerSymbol({
+              color: [
+                6,
+                182,
+                212,
+                1,
+              ],
+
+              size: 17,
+
+              outline: {
+                color: [
+                  255,
+                  255,
+                  255,
+                  1,
+                ],
+
+                width: 3,
+              },
+            }),
+
+          attributes: {
+            communityName,
+            communityType,
+          },
+        });
+
+      analysisGraphics.add(
+        selectedMarker
+      );
+
+      // ----------------------------------------------
+      // FRAME ANALYSIS AREA
+      // ----------------------------------------------
+
+      const bufferExtent =
+        bufferGeometry.extent;
+
+      if (bufferExtent) {
+        try {
+          await view.goTo(
+            {
+              target:
+                bufferExtent.expand(
+                  1.18
+                ),
+            },
+            {
+              duration: 700,
+            }
+          );
+        } catch (
+          navigationError
+        ) {
+          console.debug(
+            "Analysis navigation interrupted:",
+            navigationError
+          );
+        }
+      }
+
+      // ----------------------------------------------
+      // RUN GIS ROAD NETWORK ANALYSIS
+      // ----------------------------------------------
+
+      const [
+        winterAnalysis,
+        pavedAnalysis,
+        gravelAnalysis,
+      ] = await Promise.all([
+        calculateClippedRoadLength(
+          winterRoads,
+          bufferGeometry
+        ),
+
+        calculateClippedRoadLength(
+          pavedRoads,
+          bufferGeometry
+        ),
+
+        calculateClippedRoadLength(
+          gravelRoads,
+          bufferGeometry
+        ),
+      ]);
+
+      // ----------------------------------------------
+      // STORE RAW GIS RESULTS
+      // ----------------------------------------------
+
+      setWinterSegmentCount(
+        winterAnalysis.featureCount
+      );
+
+      setWinterRoadLength(
+        winterAnalysis.lengthKm
+      );
+
+      setPavedRoadLength(
+        pavedAnalysis.lengthKm
+      );
+
+      setGravelRoadLength(
+        gravelAnalysis.lengthKm
+      );
+
+      // ----------------------------------------------
+      // SEND RESULTS TO ASP.NET CORE
+      // ----------------------------------------------
+
+      const apiAnalysis =
+        await requestBackendAnalysis(
+          communityName,
+          communityType,
+
+          pavedAnalysis.lengthKm,
+          gravelAnalysis.lengthKm,
+          winterAnalysis.lengthKm,
+
+          winterAnalysis.featureCount
+        );
+
+      setBackendAnalysis(apiAnalysis);
+
+      setAnalysisLoading(false);
+
+      // ----------------------------------------------
+      // DEVELOPMENT VALIDATION
+      // ----------------------------------------------
+
+      console.log(
+        `📍 Access analysis for ${communityName}`
+      );
+
+      console.log(
+        "ArcGIS paved road length:",
+        pavedAnalysis.lengthKm.toFixed(
+          2
+        ),
+        "km"
+      );
+
+      console.log(
+        "ArcGIS gravel road length:",
+        gravelAnalysis.lengthKm.toFixed(
+          2
+        ),
+        "km"
+      );
+
+      console.log(
+        "ArcGIS winter road length:",
+        winterAnalysis.lengthKm.toFixed(
+          2
+        ),
+        "km"
+      );
+
+      console.log(
+        "ASP.NET Core response:",
+        apiAnalysis
+      );
+
+      console.log(
+        "Resilience score:",
+        apiAnalysis.resilienceScore
+      );
+      } catch (error) {
+        console.error(
+          "Community access analysis failed:",
+          error
+        );
+
+        setAnalysisError(
+          "Unable to complete access analysis. Make sure the ASP.NET Core API is running on port 5112."
+        );
+
+        setAnalysisLoading(false);
+      }
+    };
+
+    // Radius buttons call this ref. Because the selected Graphic is
+    // retained here, changing 25/50/75/100 km immediately rebuilds
+    // the buffer, road statistics, and backend indicator.
+    reanalyzeSelectedCommunityRef.current = async () => {
+      if (!lastSelectedCommunityGraphic) return;
+      await analyzeCommunityGraphic(lastSelectedCommunityGraphic);
+    };
+
     const clickHandle = view.on(
       "click",
       async (event) => {
@@ -531,11 +887,9 @@ function App() {
             include: [communities],
           });
 
-          const communityResult =
-            response.results.find(
-              (result) =>
-                result.type === "graphic"
-            );
+          const communityResult = response.results.find(
+            (result) => result.type === "graphic"
+          );
 
           if (
             !communityResult ||
@@ -544,307 +898,13 @@ function App() {
             return;
           }
 
-          const communityGraphic =
-            communityResult.graphic;
-
-          const communityName =
-            communityGraphic.attributes?.CULPT_NAME;
-
-          const communityType =
-            communityGraphic.attributes?.TYPE ??
-            "Unknown";
-
-          const selectedGeometry =
-            communityGraphic.geometry;
-
-          if (
-            !communityName ||
-            !selectedGeometry
-          ) {
-            return;
-          }
-
-          // ----------------------------------------------
-          // RESET PREVIOUS ANALYSIS
-          // ----------------------------------------------
-
-          setSelectedCommunity(communityName);
-
-          setSelectedCommunityType(
-            communityType
-          );
-
-          setWinterSegmentCount(null);
-
-          setWinterRoadLength(null);
-
-          setPavedRoadLength(null);
-
-          setGravelRoadLength(null);
-
-          setBackendAnalysis(null);
-
-          setAnalysisError(null);
-
-          setAnalysisLoading(true);
-
-          analysisGraphics.removeAll();
-
-          // ----------------------------------------------
-          // LOAD GEOMETRY OPERATORS
-          // ----------------------------------------------
-
-          if (
-            !geodesicBufferOperator.isLoaded()
-          ) {
-            await geodesicBufferOperator.load();
-          }
-
-          if (
-            !geodeticLengthOperator.isLoaded()
-          ) {
-            await geodeticLengthOperator.load();
-          }
-
-          // ----------------------------------------------
-          // CREATE 50 KM BUFFER
-          // ----------------------------------------------
-
-          const bufferGeometry =
-            geodesicBufferOperator.execute(
-              selectedGeometry,
-              ANALYSIS_RADIUS_KM,
-              {
-                unit: "kilometers",
-              }
-            );
-
-          if (!bufferGeometry) {
-            throw new Error(
-              "Unable to create the community analysis buffer."
-            );
-          }
-
-          // ----------------------------------------------
-          // BUFFER GRAPHIC
-          // ----------------------------------------------
-
-          const bufferGraphic = new Graphic({
-            geometry: bufferGeometry,
-
-            symbol: {
-              type: "simple-fill",
-
-              color: [
-                37,
-                99,
-                235,
-                0.07,
-              ],
-
-              outline: {
-                color: [
-                  59,
-                  130,
-                  246,
-                  0.95,
-                ],
-
-                width: 2,
-              },
-            },
-          });
-
-          analysisGraphics.add(bufferGraphic);
-
-          // ----------------------------------------------
-          // SELECTED COMMUNITY
-          // ----------------------------------------------
-
-          const selectedMarker =
-            new Graphic({
-              geometry: selectedGeometry,
-
-              symbol:
-                new SimpleMarkerSymbol({
-                  color: [
-                    6,
-                    182,
-                    212,
-                    1,
-                  ],
-
-                  size: 17,
-
-                  outline: {
-                    color: [
-                      255,
-                      255,
-                      255,
-                      1,
-                    ],
-
-                    width: 3,
-                  },
-                }),
-
-              attributes: {
-                communityName,
-                communityType,
-              },
-            });
-
-          analysisGraphics.add(
-            selectedMarker
-          );
-
-          // ----------------------------------------------
-          // FRAME ANALYSIS AREA
-          // ----------------------------------------------
-
-          const bufferExtent =
-            bufferGeometry.extent;
-
-          if (bufferExtent) {
-            try {
-              await view.goTo(
-                {
-                  target:
-                    bufferExtent.expand(
-                      1.18
-                    ),
-                },
-                {
-                  duration: 700,
-                }
-              );
-            } catch (
-              navigationError
-            ) {
-              console.debug(
-                "Analysis navigation interrupted:",
-                navigationError
-              );
-            }
-          }
-
-          // ----------------------------------------------
-          // RUN GIS ROAD NETWORK ANALYSIS
-          // ----------------------------------------------
-
-          const [
-            winterAnalysis,
-            pavedAnalysis,
-            gravelAnalysis,
-          ] = await Promise.all([
-            calculateClippedRoadLength(
-              winterRoads,
-              bufferGeometry
-            ),
-
-            calculateClippedRoadLength(
-              pavedRoads,
-              bufferGeometry
-            ),
-
-            calculateClippedRoadLength(
-              gravelRoads,
-              bufferGeometry
-            ),
-          ]);
-
-          // ----------------------------------------------
-          // STORE RAW GIS RESULTS
-          // ----------------------------------------------
-
-          setWinterSegmentCount(
-            winterAnalysis.featureCount
-          );
-
-          setWinterRoadLength(
-            winterAnalysis.lengthKm
-          );
-
-          setPavedRoadLength(
-            pavedAnalysis.lengthKm
-          );
-
-          setGravelRoadLength(
-            gravelAnalysis.lengthKm
-          );
-
-          // ----------------------------------------------
-          // SEND RESULTS TO ASP.NET CORE
-          // ----------------------------------------------
-
-          const apiAnalysis =
-            await requestBackendAnalysis(
-              communityName,
-              communityType,
-
-              pavedAnalysis.lengthKm,
-              gravelAnalysis.lengthKm,
-              winterAnalysis.lengthKm,
-
-              winterAnalysis.featureCount
-            );
-
-          setBackendAnalysis(apiAnalysis);
-
-          setAnalysisLoading(false);
-
-          // ----------------------------------------------
-          // DEVELOPMENT VALIDATION
-          // ----------------------------------------------
-
-          console.log(
-            `📍 Access analysis for ${communityName}`
-          );
-
-          console.log(
-            "ArcGIS paved road length:",
-            pavedAnalysis.lengthKm.toFixed(
-              2
-            ),
-            "km"
-          );
-
-          console.log(
-            "ArcGIS gravel road length:",
-            gravelAnalysis.lengthKm.toFixed(
-              2
-            ),
-            "km"
-          );
-
-          console.log(
-            "ArcGIS winter road length:",
-            winterAnalysis.lengthKm.toFixed(
-              2
-            ),
-            "km"
-          );
-
-          console.log(
-            "ASP.NET Core response:",
-            apiAnalysis
-          );
-
-          console.log(
-            "Resilience score:",
-            apiAnalysis.resilienceScore
-          );
+          lastSelectedCommunityGraphic = communityResult.graphic;
+          await analyzeCommunityGraphic(communityResult.graphic);
         } catch (error) {
           console.error(
-            "Community access analysis failed:",
+            "Community selection failed:",
             error
           );
-
-          setAnalysisError(
-            "Unable to complete access analysis. Make sure the ASP.NET Core API is running on port 5112."
-          );
-
-          setAnalysisLoading(false);
         }
       }
     );
@@ -913,6 +973,7 @@ function App() {
 
     return () => {
       clickHandle.remove();
+      reanalyzeSelectedCommunityRef.current = null;
 
       view.destroy();
 
@@ -978,13 +1039,36 @@ function App() {
           <div className="data-status">
             <span className="status-dot" />
 
-            LIVE GOVERNMENT DATA
+            GOVERNMENT OF ALBERTA DATA
           </div>
 
-          <div className="radius-pill">
-            <span>◎</span>
+          <button
+            type="button"
+            className="methodology-button"
+            onClick={() => setMethodologyOpen(true)}
+          >
+            About & Methodology
+          </button>
 
-            {ANALYSIS_RADIUS_KM} KM ANALYSIS
+          <div className="radius-selector" aria-label="Analysis radius">
+            <span className="radius-selector-label">ANALYSIS RADIUS</span>
+
+            {[25, 50, 75, 100].map((radius) => (
+              <button
+                key={radius}
+                type="button"
+                className={
+                  analysisRadiusKm === radius
+                    ? "radius-option active"
+                    : "radius-option"
+                }
+                onClick={() => handleRadiusChange(radius)}
+                disabled={analysisLoading}
+                aria-pressed={analysisRadiusKm === radius}
+              >
+                {radius} km
+              </button>
+            ))}
           </div>
         </div>
       </header>
@@ -1103,12 +1187,12 @@ function App() {
               <div className="resilience-card-header">
                 <div>
                   <span className="card-label">
-                    RESILIENCE SCORE
+                    SEASONAL ACCESS RESILIENCE INDICATOR
                   </span>
 
                   <p>
-                    Backend resilience
-                    assessment
+                    Prototype indicator based on analyzed
+                    road-network composition
                   </p>
                 </div>
 
@@ -1155,6 +1239,61 @@ function App() {
 
                 Calculated by ASP.NET Core
               </div>
+
+              {backendAnalysis && selectedCommunity && !analysisLoading && (
+                <div className="result-summary">
+                  <span className="result-summary-label">INTERPRETATION</span>
+                  <p>
+                    Within <strong>{backendAnalysis.analysisRadiusKm} km</strong>{" "}
+                    of <strong>{selectedCommunity}</strong>, winter-road
+                    infrastructure represents{" "}
+                    <strong>
+                      {backendAnalysis.seasonalDependencyPercent.toFixed(1)}%
+                    </strong>{" "}
+                    of the analyzed road network. The prototype Seasonal Access
+                    Resilience Indicator is{" "}
+                    <strong>{backendAnalysis.resilienceScore.toFixed(1)}/100</strong>.
+                  </p>
+                </div>
+              )}
+
+              {backendAnalysis && !analysisLoading && (
+                <div className="methodology-note">
+                  <strong>How is this calculated?</strong>
+
+                  <p>
+                    Winter roads represent{" "}
+                    <b>
+                      {backendAnalysis.seasonalDependencyPercent.toFixed(1)}%
+                    </b>{" "}
+                    of the{" "}
+                    <b>
+                      {backendAnalysis.totalAnalyzedRoadKm.toFixed(1)} km
+                    </b>{" "}
+                    of road infrastructure analyzed within{" "}
+                    {backendAnalysis.analysisRadiusKm} km of this community.
+                  </p>
+
+                  <div className="formula-box">
+                    <span>Prototype resilience indicator</span>
+                    <strong>
+                      100 − {backendAnalysis.seasonalDependencyPercent.toFixed(1)}%
+                      {" = "}
+                      {backendAnalysis.resilienceScore.toFixed(1)}
+                    </strong>
+                  </div>
+                </div>
+              )}
+
+              <div className="prototype-disclaimer">
+                <strong>Prototype methodology</strong>
+                <p>
+                  This indicator describes road-network composition within the
+                  selected analysis radius. It is intended for exploratory
+                  analysis and is not an official Government of Alberta
+                  resilience assessment.
+                </p>
+              </div>
             </section>
 
             {/* ALL-SEASON ACCESS */}
@@ -1198,7 +1337,7 @@ function App() {
                 </div>
 
                 <span className="radius-mini">
-                  {ANALYSIS_RADIUS_KM} km
+                  {analysisRadiusKm} km
                 </span>
               </div>
 
@@ -1269,7 +1408,7 @@ function App() {
                 </span>
 
                 <strong>
-                  {ANALYSIS_RADIUS_KM}
+                  {analysisRadiusKm}
 
                   <small> km</small>
                 </strong>
@@ -1489,7 +1628,7 @@ function App() {
 
             <small>
               {selectedCommunity
-                ? `${ANALYSIS_RADIUS_KM} km geodesic proximity analysis`
+                ? `${analysisRadiusKm} km geodesic proximity analysis`
                 : "Select a community to begin spatial analysis"}
             </small>
           </div>
@@ -1521,7 +1660,7 @@ function App() {
 
             <div className="legend-row">
               <span className="buffer-symbol" />
-              50 km analysis area
+              {analysisRadiusKm} km analysis area
             </div>
           </div>
 
@@ -1555,6 +1694,16 @@ function App() {
           <span className="footer-source-dot" />
 
           Government of Alberta Open Data
+          <span className="footer-retrieved">
+            Retrieved{" "}
+            {dataRetrievedAt.toLocaleString("en-CA", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
         </div>
 
         <div className="footer-stats">
@@ -1581,6 +1730,120 @@ function App() {
           </span>
         </div>
       </footer>
+
+      {methodologyOpen && (
+        <div
+          className="methodology-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setMethodologyOpen(false);
+          }}
+        >
+          <section
+            className="methodology-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="methodology-title"
+          >
+            <header className="methodology-modal-header">
+              <div>
+                <span className="section-kicker">PROJECT METHODOLOGY</span>
+                <h2 id="methodology-title">About & Methodology</h2>
+              </div>
+              <button
+                type="button"
+                className="methodology-close"
+                onClick={() => setMethodologyOpen(false)}
+                aria-label="Close methodology"
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="methodology-modal-body">
+              <h3>About this project</h3>
+              <p>
+                Alberta Seasonal Access & Supply Resilience is an independent
+                geospatial prototype exploring how seasonal transportation
+                infrastructure may influence community-level road access across Alberta.
+              </p>
+
+              <h3>How the analysis works</h3>
+              <p>
+                Select an Alberta community and choose a 25, 50, 75, or 100
+                kilometre analysis radius. The application creates a geodesic
+                buffer around the selected community and analyzes paved,
+                gravel, and winter road infrastructure intersecting that area.
+              </p>
+
+              <h3>Road-length calculation</h3>
+              <p>
+                Road geometries intersecting the analysis area are spatially
+                clipped to the selected geodesic buffer. Geodetic length is
+                calculated for the clipped geometry so only infrastructure
+                within the analysis area contributes to the result.
+              </p>
+
+              <h3>Seasonal dependency</h3>
+              <div className="methodology-equation">
+                Seasonal Dependency (%) =
+                <br />
+                Winter Road km ÷ Total Analyzed Road km × 100
+              </div>
+              <p>
+                This describes the proportion of analyzed road infrastructure
+                represented by winter roads.
+              </p>
+
+              <h3>Prototype resilience indicator</h3>
+              <div className="methodology-equation">
+                Seasonal Access Resilience Indicator =
+                <br />
+                100 − Seasonal Dependency (%)
+              </div>
+              <p>
+                A higher value indicates a lower proportion of winter-road
+                infrastructure within the selected analysis area. It should be
+                interpreted together with the paved, gravel, and winter-road statistics.
+              </p>
+
+              <h3>Data sources</h3>
+              <p>
+                The application consumes Government of Alberta geospatial
+                services for Alberta communities and road infrastructure.
+                These services are queried during analysis; the resilience
+                indicator itself is not an official government metric.
+              </p>
+
+              <h3>Technology</h3>
+              <p>
+                Spatial visualization and analysis use ArcGIS Maps SDK for
+                JavaScript. Road-network measurements are passed to an ASP.NET
+                Core API that calculates seasonal dependency and the prototype
+                resilience indicator.
+              </p>
+
+              <h3>Current limitations</h3>
+              <p>
+                The prototype evaluates road-network composition within a
+                geographic radius. It does not yet evaluate alternative-route
+                connectivity, current road closures, weather, freight volumes,
+                travel time, critical facilities, supply-chain demand, or the
+                operational condition of individual roads.
+              </p>
+
+              <div className="methodology-disclaimer">
+                <strong>Independent prototype</strong>
+                <p>
+                  This project is independently developed for exploratory
+                  geospatial analysis. It is not affiliated with, endorsed by,
+                  or an official assessment of the Government of Alberta.
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
