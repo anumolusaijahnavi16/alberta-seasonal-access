@@ -9,6 +9,8 @@ import { useEffect, useRef, useState } from "react";
 import Map from "@arcgis/core/Map";
 import MapView from "@arcgis/core/views/MapView";
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
+import Polyline from "@arcgis/core/geometry/Polyline";
+import Point from "@arcgis/core/geometry/Point";
 import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer";
 import Graphic from "@arcgis/core/Graphic";
 
@@ -36,6 +38,16 @@ const GRAVEL_ROADS_URL = `${ALBERTA_ACCESS_SERVICE}/23`;
 // ========================================================
 // ASP.NET CORE API TYPES
 // ========================================================
+
+interface PopulationContextResponse {
+  communityName: string;
+  population: number | null;
+  year: number | null;
+  geography: string | null;
+  parentMunicipality: string | null;
+  source: string;
+  message: string | null;
+}
 
 interface AccessAnalysisResponse {
   communityName: string;
@@ -67,6 +79,10 @@ function App() {
   const winterRoadsRef = useRef<FeatureLayer | null>(null);
   const pavedRoadsRef = useRef<FeatureLayer | null>(null);
   const gravelRoadsRef = useRef<FeatureLayer | null>(null);
+
+  const otherPublicAirportsRef = useRef<FeatureLayer | null>(null);
+  const regionalAirportsRef = useRef<FeatureLayer | null>(null);
+  const internationalAirportsRef = useRef<FeatureLayer | null>(null);
   const communitiesRef = useRef<FeatureLayer | null>(null);
 
   const [winterRoadsVisible, setWinterRoadsVisible] =
@@ -110,6 +126,45 @@ function App() {
   const [gravelRoadLength, setGravelRoadLength] = useState<
     number | null
   >(null);
+
+  // ========================================================
+  // COMMUNITY CONTEXT
+  // Population + airport proximity
+  // ========================================================
+
+  const [communityPopulation, setCommunityPopulation] =
+    useState<number | null>(null);
+
+  const [populationYear, setPopulationYear] =
+    useState<number | null>(null);
+
+  const [populationGeography, setPopulationGeography] =
+    useState<string | null>(null);
+
+  const [populationMessage, setPopulationMessage] =
+    useState<string | null>(null);
+
+  const [parentMunicipality, setParentMunicipality] =
+    useState<string | null>(null);
+
+  const [populationLoading, setPopulationLoading] =
+    useState(false);
+
+  const [nearestPublicAirport, setNearestPublicAirport] = useState<{
+    name: string;
+    distanceKm: number;
+  } | null>(null);
+
+  const [nearestRegionalAirport, setNearestRegionalAirport] = useState<{
+    name: string;
+    distanceKm: number;
+  } | null>(null);
+
+  const [nearestInternationalAirport, setNearestInternationalAirport] =
+    useState<{
+      name: string;
+      distanceKm: number;
+    } | null>(null);
 
   const [backendAnalysis, setBackendAnalysis] =
     useState<AccessAnalysisResponse | null>(null);
@@ -159,17 +214,17 @@ function App() {
 
   const localTotalAnalyzedRoadLength =
     localAllSeasonRoadLength !== null &&
-    winterRoadLength !== null
+      winterRoadLength !== null
       ? localAllSeasonRoadLength + winterRoadLength
       : null;
 
   const localSeasonalDependencyPercent =
     localTotalAnalyzedRoadLength !== null &&
-    localTotalAnalyzedRoadLength > 0 &&
-    winterRoadLength !== null
+      localTotalAnalyzedRoadLength > 0 &&
+      winterRoadLength !== null
       ? (winterRoadLength /
-          localTotalAnalyzedRoadLength) *
-        100
+        localTotalAnalyzedRoadLength) *
+      100
       : null;
 
   const localSeasonalDependencyLevel =
@@ -317,6 +372,32 @@ function App() {
 
       popupEnabled: false,
     });
+
+    // ========================================================
+    // GOVERNMENT OF ALBERTA PUBLIC AIRPORTS
+    // ========================================================
+
+    const otherPublicAirports = new FeatureLayer({
+      url: "https://geospatial.alberta.ca/arcgis/rest/services/Highway_Economic_Corridor/MapServer/27",
+      outFields: ["*"],
+      visible: false,
+    });
+
+    const regionalAirports = new FeatureLayer({
+      url: "https://geospatial.alberta.ca/arcgis/rest/services/Highway_Economic_Corridor/MapServer/28",
+      outFields: ["*"],
+      visible: false,
+    });
+
+    const internationalAirports = new FeatureLayer({
+      url: "https://geospatial.alberta.ca/arcgis/rest/services/Highway_Economic_Corridor/MapServer/29",
+      outFields: ["*"],
+      visible: false,
+    });
+
+    otherPublicAirportsRef.current = otherPublicAirports;
+    regionalAirportsRef.current = regionalAirports;
+    internationalAirportsRef.current = internationalAirports;
 
     map.add(gravelRoads);
 
@@ -512,6 +593,72 @@ function App() {
       };
     };
 
+    const findNearestAirportInLayer = async (
+      airportLayer: FeatureLayer,
+      communityGeometry: Point
+    ) => {
+      const query = airportLayer.createQuery();
+
+      // Query the complete Alberta airport category. We calculate the
+      // nearest geodetic distance below, so remote communities are not
+      // excluded by an arbitrary search-radius cutoff.
+      query.where = "1=1";
+      query.returnGeometry = true;
+      query.outFields = ["*"];
+
+      const result = await airportLayer.queryFeatures(query);
+
+      let nearestName: string | null = null;
+      let nearestDistanceKm = Infinity;
+
+      for (const airport of result.features) {
+        if (!airport.geometry) continue;
+
+        const airportPoint = airport.geometry as Point;
+
+        const line = new Polyline({
+          spatialReference: communityGeometry.spatialReference,
+
+          paths: [
+            [
+              [communityGeometry.x, communityGeometry.y],
+              [airportPoint.x, airportPoint.y],
+            ],
+          ],
+        });
+
+        const distanceKm = Math.abs(
+          geodeticLengthOperator.execute(line, {
+            unit: "kilometers",
+          })
+        );
+
+        if (
+          Number.isFinite(distanceKm) &&
+          distanceKm < nearestDistanceKm
+        ) {
+          nearestDistanceKm = distanceKm;
+
+          nearestName =
+            airport.attributes?.AIRPORT_NAME ??
+            airport.attributes?.airport_name ??
+            "Airport";
+        }
+      }
+
+      if (
+        nearestName === null ||
+        !Number.isFinite(nearestDistanceKm)
+      ) {
+        return null;
+      }
+
+      return {
+        name: nearestName,
+        distanceKm: nearestDistanceKm,
+      };
+    };
+
     // ====================================================
     // ASP.NET CORE RESILIENCE ANALYSIS
     // ====================================================
@@ -560,6 +707,28 @@ function App() {
       return (await response.json()) as AccessAnalysisResponse;
     };
 
+    const requestPopulationContext = async (
+      communityName: string,
+      point: Point
+    ): Promise<PopulationContextResponse> => {
+      const params = new URLSearchParams({
+        longitude: point.longitude.toString(),
+        latitude: point.latitude.toString(),
+      });
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/population/${encodeURIComponent(communityName)}?${params.toString()}`
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Population lookup failed (${response.status})`
+        );
+      }
+
+      return (await response.json()) as PopulationContextResponse;
+    };
+
     // ====================================================
     // COMMUNITY CLICK ANALYSIS
     // ====================================================
@@ -570,293 +739,343 @@ function App() {
       communityGraphic: Graphic
     ) => {
       try {
-      const communityName =
-        communityGraphic.attributes?.CULPT_NAME;
+        const communityName =
+          communityGraphic.attributes?.CULPT_NAME;
 
-      const communityType =
-        communityGraphic.attributes?.TYPE ??
-        "Unknown";
+        const communityType =
+          communityGraphic.attributes?.TYPE ??
+          "Unknown";
 
-      const selectedGeometry =
-        communityGraphic.geometry;
+        const selectedGeometry =
+          communityGraphic.geometry;
 
-      if (
-        !communityName ||
-        !selectedGeometry
-      ) {
-        return;
-      }
+        if (
+          !communityName ||
+          !selectedGeometry
+        ) {
+          return;
+        }
 
-      // ----------------------------------------------
-      // RESET PREVIOUS ANALYSIS
-      // ----------------------------------------------
+        // ----------------------------------------------
+        // RESET PREVIOUS ANALYSIS
+        // ----------------------------------------------
 
-      setSelectedCommunity(communityName);
+        setSelectedCommunity(communityName);
 
-      setSelectedCommunityType(
-        communityType
-      );
-
-      setWinterSegmentCount(null);
-
-      setWinterRoadLength(null);
-
-      setPavedRoadLength(null);
-
-      setGravelRoadLength(null);
-
-      setBackendAnalysis(null);
-
-      setAnalysisError(null);
-
-      setAnalysisLoading(true);
-
-      analysisGraphics.removeAll();
-
-      // ----------------------------------------------
-      // LOAD GEOMETRY OPERATORS
-      // ----------------------------------------------
-
-      if (
-        !geodesicBufferOperator.isLoaded()
-      ) {
-        await geodesicBufferOperator.load();
-      }
-
-      if (
-        !geodeticLengthOperator.isLoaded()
-      ) {
-        await geodeticLengthOperator.load();
-      }
-
-      // ----------------------------------------------
-      // CREATE USER-SELECTED ANALYSIS BUFFER
-      // ----------------------------------------------
-
-      const bufferGeometry =
-        geodesicBufferOperator.execute(
-          selectedGeometry,
-          analysisRadiusRef.current,
-          {
-            unit: "kilometers",
-          }
+        setSelectedCommunityType(
+          communityType
         );
 
-      if (!bufferGeometry) {
-        throw new Error(
-          "Unable to create the community analysis buffer."
-        );
-      }
+        setWinterSegmentCount(null);
 
-      // ----------------------------------------------
-      // BUFFER GRAPHIC
-      // ----------------------------------------------
+        setWinterRoadLength(null);
 
-      const bufferGraphic = new Graphic({
-        geometry: bufferGeometry,
+        setPavedRoadLength(null);
 
-        symbol: {
-          type: "simple-fill",
+        setGravelRoadLength(null);
 
-          color: [
-            37,
-            99,
-            235,
-            0.07,
-          ],
+        setNearestPublicAirport(null);
+        setNearestRegionalAirport(null);
+        setNearestInternationalAirport(null);
 
-          outline: {
+        setCommunityPopulation(null);
+        setPopulationYear(null);
+        setPopulationGeography(null);
+        setPopulationMessage(null);
+        setParentMunicipality(null);
+        setPopulationLoading(true);
+
+        void requestPopulationContext(
+          communityName,
+          selectedGeometry as Point
+        )
+          .then((populationContext) => {
+            setCommunityPopulation(populationContext.population);
+            setPopulationYear(populationContext.year);
+            setPopulationGeography(populationContext.geography);
+            setPopulationMessage(populationContext.message);
+            setParentMunicipality(populationContext.parentMunicipality);
+          })
+          .catch((error) => {
+            console.warn("Population lookup failed:", error);
+            setPopulationMessage("Current estimate unavailable");
+          })
+          .finally(() => {
+            setPopulationLoading(false);
+          });
+
+        setBackendAnalysis(null);
+
+        setAnalysisError(null);
+
+        setAnalysisLoading(true);
+
+        analysisGraphics.removeAll();
+
+        // ----------------------------------------------
+        // LOAD GEOMETRY OPERATORS
+        // ----------------------------------------------
+
+        if (
+          !geodesicBufferOperator.isLoaded()
+        ) {
+          await geodesicBufferOperator.load();
+        }
+
+        if (
+          !geodeticLengthOperator.isLoaded()
+        ) {
+          await geodeticLengthOperator.load();
+        }
+
+        // ----------------------------------------------
+        // CREATE USER-SELECTED ANALYSIS BUFFER
+        // ----------------------------------------------
+
+        const bufferGeometry =
+          geodesicBufferOperator.execute(
+            selectedGeometry,
+            analysisRadiusRef.current,
+            {
+              unit: "kilometers",
+            }
+          );
+
+        if (!bufferGeometry) {
+          throw new Error(
+            "Unable to create the community analysis buffer."
+          );
+        }
+
+        // ----------------------------------------------
+        // BUFFER GRAPHIC
+        // ----------------------------------------------
+
+        const bufferGraphic = new Graphic({
+          geometry: bufferGeometry,
+
+          symbol: {
+            type: "simple-fill",
+
             color: [
-              59,
-              130,
-              246,
-              0.95,
+              37,
+              99,
+              235,
+              0.07,
             ],
 
-            width: 2,
-          },
-        },
-      });
-
-      analysisGraphics.add(bufferGraphic);
-
-      // ----------------------------------------------
-      // SELECTED COMMUNITY
-      // ----------------------------------------------
-
-      const selectedMarker =
-        new Graphic({
-          geometry: selectedGeometry,
-
-          symbol:
-            new SimpleMarkerSymbol({
+            outline: {
               color: [
-                6,
-                182,
-                212,
-                1,
+                59,
+                130,
+                246,
+                0.95,
               ],
 
-              size: 17,
-
-              outline: {
-                color: [
-                  255,
-                  255,
-                  255,
-                  1,
-                ],
-
-                width: 3,
-              },
-            }),
-
-          attributes: {
-            communityName,
-            communityType,
+              width: 2,
+            },
           },
         });
 
-      analysisGraphics.add(
-        selectedMarker
-      );
+        analysisGraphics.add(bufferGraphic);
 
-      // ----------------------------------------------
-      // FRAME ANALYSIS AREA
-      // ----------------------------------------------
+        // ----------------------------------------------
+        // SELECTED COMMUNITY
+        // ----------------------------------------------
 
-      const bufferExtent =
-        bufferGeometry.extent;
+        const selectedMarker =
+          new Graphic({
+            geometry: selectedGeometry,
 
-      if (bufferExtent) {
-        try {
-          await view.goTo(
-            {
-              target:
-                bufferExtent.expand(
-                  1.18
-                ),
+            symbol:
+              new SimpleMarkerSymbol({
+                color: [
+                  6,
+                  182,
+                  212,
+                  1,
+                ],
+
+                size: 17,
+
+                outline: {
+                  color: [
+                    255,
+                    255,
+                    255,
+                    1,
+                  ],
+
+                  width: 3,
+                },
+              }),
+
+            attributes: {
+              communityName,
+              communityType,
             },
-            {
-              duration: 700,
-            }
-          );
-        } catch (
+          });
+
+        analysisGraphics.add(
+          selectedMarker
+        );
+
+        // ----------------------------------------------
+        // FRAME ANALYSIS AREA
+        // ----------------------------------------------
+
+        const bufferExtent =
+          bufferGeometry.extent;
+
+        if (bufferExtent) {
+          try {
+            await view.goTo(
+              {
+                target:
+                  bufferExtent.expand(
+                    1.18
+                  ),
+              },
+              {
+                duration: 700,
+              }
+            );
+          } catch (
           navigationError
-        ) {
-          console.debug(
-            "Analysis navigation interrupted:",
-            navigationError
-          );
+          ) {
+            console.debug(
+              "Analysis navigation interrupted:",
+              navigationError
+            );
+          }
         }
-      }
 
-      // ----------------------------------------------
-      // RUN GIS ROAD NETWORK ANALYSIS
-      // ----------------------------------------------
+        // ----------------------------------------------
+        // RUN GIS ROAD NETWORK ANALYSIS
+        // ----------------------------------------------
 
-      const [
-        winterAnalysis,
-        pavedAnalysis,
-        gravelAnalysis,
-      ] = await Promise.all([
-        calculateClippedRoadLength(
-          winterRoads,
-          bufferGeometry
-        ),
+        const [winterAnalysis, pavedAnalysis, gravelAnalysis] =
+          await Promise.all([
+            calculateClippedRoadLength(winterRoads, bufferGeometry),
+            calculateClippedRoadLength(pavedRoads, bufferGeometry),
+            calculateClippedRoadLength(gravelRoads, bufferGeometry),
+          ]);
 
-        calculateClippedRoadLength(
-          pavedRoads,
-          bufferGeometry
-        ),
+        // Airport proximity is supplementary community context. Keep it
+        // isolated so an airport-service issue cannot break the core
+        // road-network or ASP.NET Core resilience analysis.
+        const airportResults = await Promise.allSettled([
+          findNearestAirportInLayer(
+            otherPublicAirports,
+            selectedGeometry as Point
+          ),
+          findNearestAirportInLayer(
+            regionalAirports,
+            selectedGeometry as Point
+          ),
+          findNearestAirportInLayer(
+            internationalAirports,
+            selectedGeometry as Point
+          ),
+        ]);
 
-        calculateClippedRoadLength(
-          gravelRoads,
-          bufferGeometry
-        ),
-      ]);
+        const airportValue = (
+          result: PromiseSettledResult<{
+            name: string;
+            distanceKm: number;
+          } | null>
+        ) => {
+          if (result.status === "fulfilled") return result.value;
 
-      // ----------------------------------------------
-      // STORE RAW GIS RESULTS
-      // ----------------------------------------------
+          console.warn("Airport proximity query failed:", result.reason);
+          return null;
+        };
 
-      setWinterSegmentCount(
-        winterAnalysis.featureCount
-      );
+        setNearestPublicAirport(airportValue(airportResults[0]));
+        setNearestRegionalAirport(airportValue(airportResults[1]));
+        setNearestInternationalAirport(airportValue(airportResults[2]));
 
-      setWinterRoadLength(
-        winterAnalysis.lengthKm
-      );
+        // ----------------------------------------------
+        // STORE RAW GIS RESULTS
+        // ----------------------------------------------
 
-      setPavedRoadLength(
-        pavedAnalysis.lengthKm
-      );
-
-      setGravelRoadLength(
-        gravelAnalysis.lengthKm
-      );
-
-      // ----------------------------------------------
-      // SEND RESULTS TO ASP.NET CORE
-      // ----------------------------------------------
-
-      const apiAnalysis =
-        await requestBackendAnalysis(
-          communityName,
-          communityType,
-
-          pavedAnalysis.lengthKm,
-          gravelAnalysis.lengthKm,
-          winterAnalysis.lengthKm,
-
+        setWinterSegmentCount(
           winterAnalysis.featureCount
         );
 
-      setBackendAnalysis(apiAnalysis);
+        setWinterRoadLength(
+          winterAnalysis.lengthKm
+        );
 
-      setAnalysisLoading(false);
+        setPavedRoadLength(
+          pavedAnalysis.lengthKm
+        );
 
-      // ----------------------------------------------
-      // DEVELOPMENT VALIDATION
-      // ----------------------------------------------
+        setGravelRoadLength(
+          gravelAnalysis.lengthKm
+        );
 
-      console.log(
-        `📍 Access analysis for ${communityName}`
-      );
+        // ----------------------------------------------
+        // SEND RESULTS TO ASP.NET CORE
+        // ----------------------------------------------
 
-      console.log(
-        "ArcGIS paved road length:",
-        pavedAnalysis.lengthKm.toFixed(
-          2
-        ),
-        "km"
-      );
+        const apiAnalysis =
+          await requestBackendAnalysis(
+            communityName,
+            communityType,
 
-      console.log(
-        "ArcGIS gravel road length:",
-        gravelAnalysis.lengthKm.toFixed(
-          2
-        ),
-        "km"
-      );
+            pavedAnalysis.lengthKm,
+            gravelAnalysis.lengthKm,
+            winterAnalysis.lengthKm,
 
-      console.log(
-        "ArcGIS winter road length:",
-        winterAnalysis.lengthKm.toFixed(
-          2
-        ),
-        "km"
-      );
+            winterAnalysis.featureCount
+          );
 
-      console.log(
-        "ASP.NET Core response:",
-        apiAnalysis
-      );
+        setBackendAnalysis(apiAnalysis);
 
-      console.log(
-        "Resilience score:",
-        apiAnalysis.resilienceScore
-      );
+        setAnalysisLoading(false);
+
+        // ----------------------------------------------
+        // DEVELOPMENT VALIDATION
+        // ----------------------------------------------
+
+        console.log(
+          `📍 Access analysis for ${communityName}`
+        );
+
+        console.log(
+          "ArcGIS paved road length:",
+          pavedAnalysis.lengthKm.toFixed(
+            2
+          ),
+          "km"
+        );
+
+        console.log(
+          "ArcGIS gravel road length:",
+          gravelAnalysis.lengthKm.toFixed(
+            2
+          ),
+          "km"
+        );
+
+        console.log(
+          "ArcGIS winter road length:",
+          winterAnalysis.lengthKm.toFixed(
+            2
+          ),
+          "km"
+        );
+
+        console.log(
+          "ASP.NET Core response:",
+          apiAnalysis
+        );
+
+        console.log(
+          "Resilience score:",
+          apiAnalysis.resilienceScore
+        );
       } catch (error) {
         console.error(
           "Community access analysis failed:",
@@ -982,6 +1201,10 @@ function App() {
       pavedRoadsRef.current = null;
 
       gravelRoadsRef.current = null;
+
+      otherPublicAirportsRef.current = null;
+      regionalAirportsRef.current = null;
+      internationalAirportsRef.current = null;
 
       communitiesRef.current = null;
     };
@@ -1115,6 +1338,119 @@ function App() {
               </div>
             </section>
 
+            {/* COMMUNITY CONTEXT */}
+
+            {selectedCommunity && (
+              <section className="community-context">
+                <span className="section-kicker">
+                  COMMUNITY CONTEXT
+                </span>
+
+                <div className="community-context-cards">
+                  <div className="context-card population-card">
+                    <span className="context-label">
+                      POPULATION
+                    </span>
+
+                    <strong className="population-value">
+                      {populationLoading
+                        ? "..."
+                        : communityPopulation !== null
+                          ? communityPopulation.toLocaleString()
+                          : "—"}
+                    </strong>
+
+                    {!populationLoading &&
+                      communityPopulation !== null &&
+                      populationYear !== null && (
+                        <small>
+                          {populationYear}
+                          {populationGeography
+                            ? ` · ${populationGeography.split(" · ")[0]}`
+                            : ""}
+                        </small>
+                      )}
+
+                    {!populationLoading &&
+                      communityPopulation === null &&
+                      populationMessage && (
+                        <small>{populationMessage}</small>
+                      )}
+
+                    {!populationLoading &&
+                      communityPopulation === null &&
+                      parentMunicipality && (
+                        <small>
+                          <strong>{parentMunicipality}</strong>
+                          {" · surrounding municipality"}
+                        </small>
+                      )}
+                  </div>
+
+                  <div className="context-card air-access-card">
+                    <div className="air-access-header">
+                      <span className="context-label">
+                        AIR ACCESS
+                      </span>
+                      <small>
+                        Nearest airport by category
+                      </small>
+                    </div>
+
+                    <div className="airport-list">
+                      <div className="airport-item">
+                        <span className="airport-type">
+                          PUBLIC
+                        </span>
+                        <strong>
+                          {analysisLoading
+                            ? "Finding..."
+                            : nearestPublicAirport?.name ?? "—"}
+                        </strong>
+                        {nearestPublicAirport && !analysisLoading && (
+                          <small>
+                            {nearestPublicAirport.distanceKm.toFixed(1)} km away
+                          </small>
+                        )}
+                      </div>
+
+                      <div className="airport-item">
+                        <span className="airport-type">
+                          REGIONAL
+                        </span>
+                        <strong>
+                          {analysisLoading
+                            ? "Finding..."
+                            : nearestRegionalAirport?.name ?? "—"}
+                        </strong>
+                        {nearestRegionalAirport && !analysisLoading && (
+                          <small>
+                            {nearestRegionalAirport.distanceKm.toFixed(1)} km away
+                          </small>
+                        )}
+                      </div>
+
+                      <div className="airport-item">
+                        <span className="airport-type">
+                          INTERNATIONAL
+                        </span>
+                        <strong>
+                          {analysisLoading
+                            ? "Finding..."
+                            : nearestInternationalAirport?.name ?? "—"}
+                        </strong>
+                        {nearestInternationalAirport && !analysisLoading && (
+                          <small>
+                            {nearestInternationalAirport.distanceKm.toFixed(1)} km away
+                          </small>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
             {/* SEASONAL DEPENDENCY */}
 
             <section className="dependency-card">
@@ -1147,10 +1483,10 @@ function App() {
                   {analysisLoading
                     ? "..."
                     : seasonalDependencyPercent !==
-                        null
+                      null
                       ? seasonalDependencyPercent.toFixed(
-                          1
-                        )
+                        1
+                      )
                       : "—"}
                 </strong>
 
@@ -1167,7 +1503,7 @@ function App() {
                   style={{
                     width: `${Math.min(
                       seasonalDependencyPercent ??
-                        0,
+                      0,
                       100
                     )}%`,
                   }}
@@ -1211,8 +1547,8 @@ function App() {
                     ? "..."
                     : resilienceScore !== null
                       ? resilienceScore.toFixed(
-                          1
-                        )
+                        1
+                      )
                       : "—"}
                 </strong>
 
@@ -1398,7 +1734,7 @@ function App() {
                   {analysisLoading
                     ? "..."
                     : winterSegmentCount ??
-                      "—"}
+                    "—"}
                 </strong>
               </div>
 

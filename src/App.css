@@ -87,9 +87,7 @@ input {
   height: 100vh;
   display: grid;
   grid-template-rows:
-    var(--header-height)
-    minmax(0, 1fr)
-    var(--footer-height);
+    var(--header-height) minmax(0, 1fr) var(--footer-height);
 
   background: var(--bg);
   overflow: hidden;
@@ -111,11 +109,9 @@ input {
   padding: 0 28px;
 
   background:
-    linear-gradient(
-      90deg,
+    linear-gradient(90deg,
       rgba(5, 20, 34, 0.99),
-      rgba(5, 18, 31, 0.99)
-    );
+      rgba(5, 18, 31, 0.99));
 
   border-bottom: 1px solid rgba(96, 165, 250, 0.14);
 }
@@ -129,12 +125,10 @@ input {
 
   height: 3px;
 
-  background: linear-gradient(
-    90deg,
-    rgba(245, 158, 11, 0.4),
-    rgba(96, 165, 250, 0.55),
-    rgba(6, 182, 212, 0.35)
-  );
+  background: linear-gradient(90deg,
+      rgba(245, 158, 11, 0.4),
+      rgba(96, 165, 250, 0.55),
+      rgba(6, 182, 212, 0.35));
 }
 
 .brand {
@@ -161,11 +155,9 @@ input {
   border-radius: 12px;
 
   background:
-    linear-gradient(
-      145deg,
+    linear-gradient(145deg,
       rgba(59, 130, 246, 0.16),
-      rgba(14, 165, 233, 0.08)
-    );
+      rgba(14, 165, 233, 0.08));
 
   border: 1px solid rgba(96, 165, 250, 0.22);
 
@@ -276,8 +268,7 @@ input {
 
   display: grid;
   grid-template-columns:
-    var(--sidebar-width)
-    minmax(0, 1fr);
+    var(--sidebar-width) minmax(0, 1fr);
 
   overflow: hidden;
 }
@@ -291,11 +282,9 @@ input {
   min-height: 0;
 
   background:
-    linear-gradient(
-      180deg,
+    linear-gradient(180deg,
       #071827 0%,
-      #061624 100%
-    );
+      #061624 100%);
 
   border-right: 1px solid rgba(91, 128, 168, 0.15);
 
@@ -311,8 +300,7 @@ input {
 
   scrollbar-width: thin;
   scrollbar-color:
-    rgba(110, 145, 183, 0.3)
-    transparent;
+    rgba(110, 145, 183, 0.3) transparent;
 }
 
 .panel-scroll::-webkit-scrollbar {
@@ -398,16 +386,12 @@ input {
   border-radius: 16px;
 
   background:
-    radial-gradient(
-      circle at top left,
+    radial-gradient(circle at top left,
       rgba(59, 130, 246, 0.12),
-      transparent 52%
-    ),
-    linear-gradient(
-      145deg,
+      transparent 52%),
+    linear-gradient(145deg,
       #0c2339,
-      #091d30
-    );
+      #091d30);
 
   border: 1px solid rgba(105, 147, 192, 0.18);
 
@@ -520,12 +504,10 @@ input {
   border-radius: inherit;
 
   background:
-    linear-gradient(
-      90deg,
+    linear-gradient(90deg,
       #3b82f6 0%,
       #fbbf24 50%,
-      #ef4444 100%
-    );
+      #ef4444 100%);
 
   box-shadow: 0 0 10px rgba(59, 130, 246, 0.15);
 
@@ -560,21 +542,15 @@ input {
   border-radius: 16px;
 
   background:
-    radial-gradient(
-      circle at 100% 0%,
+    radial-gradient(circle at 100% 0%,
       rgba(6, 182, 212, 0.13),
-      transparent 46%
-    ),
-    radial-gradient(
-      circle at 0% 100%,
+      transparent 46%),
+    radial-gradient(circle at 0% 100%,
       rgba(59, 130, 246, 0.08),
-      transparent 50%
-    ),
-    linear-gradient(
-      145deg,
+      transparent 50%),
+    linear-gradient(145deg,
       #0b2135,
-      #081b2d
-    );
+      #081b2d);
 
   border: 1px solid rgba(56, 189, 248, 0.19);
 
@@ -593,12 +569,10 @@ input {
 
   height: 1px;
 
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(34, 211, 238, 0.45),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(34, 211, 238, 0.45),
+      transparent);
 }
 
 .resilience-score-row {
@@ -643,12 +617,10 @@ input {
 
   border-radius: inherit;
 
-  background: linear-gradient(
-    90deg,
-    #2563eb,
-    #06b6d4,
-    #34d399
-  );
+  background: linear-gradient(90deg,
+      #2563eb,
+      #06b6d4,
+      #34d399);
 
   box-shadow:
     0 0 12px rgba(6, 182, 212, 0.25);
@@ -1046,11 +1018,11 @@ input {
     background 180ms ease;
 }
 
-.layer-control input:checked + .switch {
+.layer-control input:checked+.switch {
   background: #2563eb;
 }
 
-.layer-control input:checked + .switch::after {
+.layer-control input:checked+.switch::after {
   transform: translateX(14px);
   background: #ffffff;
 }
@@ -1325,7 +1297,7 @@ input {
   font-size: 8px;
 }
 
-.app-footer > div {
+.app-footer>div {
   display: flex;
   align-items: center;
 }
@@ -1439,7 +1411,7 @@ input {
   border-top: 1px solid rgba(148, 163, 184, 0.22);
 }
 
-.methodology-note > strong {
+.methodology-note>strong {
   display: block;
   margin-bottom: 6px;
   color: var(--text-soft);
@@ -1543,6 +1515,7 @@ input {
 }
 
 @media (max-width: 800px) {
+
   html,
   body {
     overflow: auto;
@@ -1553,9 +1526,7 @@ input {
     height: auto;
 
     grid-template-rows:
-      auto
-      auto
-      auto;
+      auto auto auto;
   }
 
   .topbar {
@@ -1572,8 +1543,7 @@ input {
   .workspace {
     grid-template-columns: 1fr;
     grid-template-rows:
-      auto
-      70vh;
+      auto 70vh;
 
     overflow: visible;
   }
@@ -1647,6 +1617,7 @@ input {
     display: none;
   }
 }
+
 /* =========================================================
    GOVERNMENT-FACING DEMO ENHANCEMENTS
    ========================================================= */
@@ -1792,7 +1763,7 @@ input {
   background: #fffbeb;
 }
 
-.methodology-disclaimer > strong {
+.methodology-disclaimer>strong {
   display: block;
   margin-bottom: 4px;
   font-size: 11px;
@@ -1810,5 +1781,165 @@ input {
   .footer-retrieved {
     display: block;
     margin: 3px 0 0 16px;
+  }
+}
+
+/* ========================================================
+   COMMUNITY CONTEXT
+   ======================================================== */
+
+.community-context {
+  margin: 0 0 18px;
+}
+
+.community-context .section-kicker {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.community-context-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.context-card {
+  min-width: 0;
+  width: 100%;
+  padding: 16px 17px;
+  background: linear-gradient(145deg, rgba(11, 32, 52, 0.96), rgba(8, 27, 44, 0.96));
+  border: 1px solid rgba(111, 157, 197, 0.17);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018), 0 8px 20px rgba(0, 0, 0, 0.05);
+}
+
+.context-label {
+  display: block;
+  margin: 0;
+  color: #7895b7;
+  font-size: 9px;
+  line-height: 1.2;
+  font-weight: 850;
+  letter-spacing: 0.14em;
+}
+
+.population-card {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.population-value {
+  display: block;
+  margin-top: 7px;
+  color: #f2f6fb;
+  font-size: 25px;
+  line-height: 1;
+  font-weight: 780;
+  letter-spacing: -0.035em;
+}
+
+.population-card small {
+  display: block;
+  margin-top: 6px;
+  color: #6f87a2;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.air-access-card {
+  padding: 17px;
+}
+
+.air-access-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.air-access-header small {
+  display: block;
+  margin: 0;
+  color: #627b97;
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.airport-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.airport-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(120, 151, 184, 0.11);
+}
+
+.airport-item:last-child {
+  padding-bottom: 1px;
+  border-bottom: 0;
+}
+
+.airport-type {
+  display: block;
+  color: #6f89a6;
+  font-size: 8px;
+  line-height: 1.2;
+  font-weight: 850;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.airport-item strong {
+  display: block;
+  max-width: 100%;
+  margin-top: 2px;
+  color: #e8eef7;
+  font-size: 15px;
+  line-height: 1.25;
+  font-weight: 720;
+  letter-spacing: -0.012em;
+  overflow-wrap: normal;
+  word-break: normal;
+  white-space: normal;
+}
+
+.airport-item small {
+  display: block;
+  margin: 1px 0 0;
+  color: #607a96;
+  font-size: 10px;
+  line-height: 1.35;
+  font-weight: 500;
+}
+
+.airport-item:last-child .airport-type {
+  color: #7898bb;
+}
+
+@media (max-width: 1100px) {
+  .context-card {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+
+  .airport-item strong {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 800px) {
+  .community-context {
+    margin-bottom: 16px;
+  }
+
+  .airport-item strong {
+    font-size: 15px;
   }
 }
