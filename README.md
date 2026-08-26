@@ -1,101 +1,127 @@
 # Alberta Seasonal Access & Supply Resilience
 
-A full-stack GIS decision-support application for analyzing seasonal road access and transportation resilience across Alberta communities.
+A GIS decision-support application for exploring transportation access and seasonal road dependency across Alberta communities.
 
-The application combines interactive geospatial analysis with an ASP.NET Core backend to evaluate how much a community depends on seasonal winter-road infrastructure.
+## What It Does
 
-## Application Preview
+Select an Alberta community and choose an analysis radius:
 
-![Alberta Seasonal Access & Supply Resilience Dashboard](docs/images/dashboard.png)
+- 25 km
+- 50 km
+- 75 km
+- 100 km
 
-## Overview
+The application analyzes nearby transportation infrastructure and provides a simple community access profile.
 
-Many Alberta communities, particularly in northern and remote regions, depend on seasonal transportation infrastructure.
+### Community Profile
 
-This application allows users to select a community and perform a 50 km geodesic proximity analysis of surrounding road infrastructure.
+The dashboard displays:
 
-The system analyzes:
-
-- Paved road access
-- Gravel road access
-- Winter road access
-- Winter road segments
-- All-season road availability
+- Population context
+- Paved road distance
+- Gravel road distance
+- Winter road distance
 - Seasonal dependency
-- Transportation resilience
+- Public airport access
+- Regional airport access
+- International airport access
 
-The resulting metrics are presented through an interactive GIS dashboard.
+## Application Flow
 
-## Key Features
+```text
+Select Community
+       |
+       v
+Choose Analysis Radius
+25 / 50 / 75 / 100 km
+       |
+       v
+Create Geodesic Analysis Area
+       |
+       v
+Analyze Nearby Road Infrastructure
+       |
+       +---- Paved Roads
+       +---- Gravel Roads
+       +---- Winter Roads
+       |
+       v
+ASP.NET Core API
+       |
+       +---- Access Analysis
+       +---- Population Context
+       +---- Airport Access
+       |
+       v
+Calculate Seasonal Dependency
+       |
+       v
+Display Community Access Profile
+```
 
-- Interactive Alberta community map
-- Community selection and spatial analysis
-- 50 km geodesic analysis area
-- Paved, gravel and winter road visualization
-- Layer visibility controls
-- Road-distance calculations
-- Seasonal dependency calculation
-- Transportation resilience scoring
-- ASP.NET Core REST API integration
-- Responsive decision-support dashboard
-- Government of Alberta open-data integration
+## Architecture
 
-## Technology Stack
+```text
+Government of Alberta / Statistics Canada
+                    |
+                    v
+            GIS & Population Data
+                    |
+                    v
+        React + TypeScript Frontend
+                    |
+                    v
+            ASP.NET Core API
+                    |
+                    v
+        Transportation Analysis
+                    |
+                    v
+              GIS Dashboard
+```
 
-### Frontend
+## Technology
 
+**Frontend**
 - React
 - TypeScript
 - Vite
 - ArcGIS Maps SDK for JavaScript
-- HTML5
-- CSS3
 
-### Backend
-
+**Backend**
 - C#
 - ASP.NET Core
 - REST API
-- Dependency Injection
-- Service-based architecture
 
-### GIS & Data
-
-- ArcGIS Maps SDK for JavaScript
-- ArcGIS Feature Services
+**Data**
 - Government of Alberta Open Data
-- Geodesic spatial analysis
+- ArcGIS Feature Services
+- Statistics Canada
 
-### Development
+**Deployment**
+- Docker
+- Nginx
+- TrueNAS
 
-- Git
-- GitHub
-- npm
-- .NET CLI
-- Visual Studio Code
-
-## Architecture
-
-The application follows a full-stack architecture:
+## Production Flow
 
 ```text
-Government of Alberta GIS Data
-            |
-            v
-ArcGIS Feature Services
-            |
-            v
-React + TypeScript Frontend
-            |
-            | Spatial analysis results
-            v
-ASP.NET Core REST API
-            |
-            v
-Resilience Analysis Service
-            |
-            v
-Seasonal Dependency & Resilience Metrics
-            |
-            v
-Interactive GIS Dashboard
+Browser
+   |
+   v
+Frontend / Nginx
+   |
+   | /api/*
+   v
+ASP.NET Core Backend
+   |
+   +---- Access Analysis
+   +---- Population
+   +---- Airport Context
+```
+
+The production frontend uses relative `/api/...` requests. Nginx forwards those requests to the backend Docker container.
+
+## Purpose
+
+The project provides a quick visual way to understand how Alberta communities depend on surrounding transportation infrastructure and how seasonal road access may affect overall connectivity and resilience.
