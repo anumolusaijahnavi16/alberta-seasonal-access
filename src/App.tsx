@@ -26,7 +26,7 @@ import Search from "@arcgis/core/widgets/Search";
 import "./App.css";
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5112";
+  import.meta.env.VITE_API_BASE_URL || "";
 
 const ALBERTA_ACCESS_SERVICE =
   "https://geospatial.alberta.ca/titan/rest/services/utility/access/MapServer";
@@ -711,9 +711,16 @@ function App() {
       communityName: string,
       point: Point
     ): Promise<PopulationContextResponse> => {
+      const longitude = point.longitude;
+      const latitude = point.latitude;
+
+      if (longitude == null || latitude == null) {
+        throw new Error("Selected community coordinates are unavailable.");
+      }
+
       const params = new URLSearchParams({
-        longitude: point.longitude.toString(),
-        latitude: point.latitude.toString(),
+        longitude: longitude.toString(),
+        latitude: latitude.toString(),
       });
 
       const response = await fetch(
